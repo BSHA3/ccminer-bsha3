@@ -125,7 +125,6 @@ int opt_priority = 0;
 static double opt_difficulty = 1.;
 bool opt_extranonce = false;
 bool opt_trust_pool = false;
-uint16_t opt_vote = 9999;
 int num_cpus;
 int active_gpus;
 bool need_nvsettings = false;
@@ -921,17 +920,10 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 			applog(LOG_DEBUG, "share diff: %.5f (x %.1f)",
 				stratum.sharediff, work->shareratio[idnonce]);
 
-		if (opt_vote) { // ALGO_HEAVY
-			nvotestr = bin2hex((const uchar*)(&nvote), 2);
-			sprintf(s, "{\"method\": \"mining.submit\", \"params\": ["
-					"\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":%u}",
-					pool->user, work->job_id + 8, xnonce2str, ntimestr, noncestr, nvotestr, stratum.job.shares_count + 10);
-			free(nvotestr);
-		} else {
-			sprintf(s, "{\"method\": \"mining.submit\", \"params\": ["
-					"\"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":%u}",
-					pool->user, work->job_id + 8, xnonce2str, ntimestr, noncestr, stratum.job.shares_count + 10);
-		}
+		sprintf(s, "{\"method\": \"mining.submit\", \"params\": ["
+				"\"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":%u}",
+				pool->user, work->job_id + 8, xnonce2str, ntimestr, noncestr, stratum.job.shares_count + 10);
+
 		free(xnonce2str);
 		free(ntimestr);
 		free(noncestr);
@@ -3223,7 +3215,7 @@ void parse_arg(int key, char *arg)
 		v = atoi(arg);
 		if (v < 0 || v > 8192)	/* sanity check */
 			show_usage_and_exit(1);
-		opt_vote = (uint16_t)v;
+		// (Removed)
 		break;
 	case 1023: // --trust-pool
 		opt_trust_pool = true;
@@ -3760,10 +3752,6 @@ static void parse_cmdline(int argc, char *argv[])
 	}
 
 	parse_config(opt_config);
-
-	if (opt_vote == 9999) {
-		opt_vote = 0; // default, don't vote
-	}
 }
 
 static void parse_single_opt(int opt, int argc, char *argv[])
