@@ -3225,7 +3225,7 @@ void parse_arg(int key, char *arg)
 		rpc_user = strdup(arg);
 		pool_set_creds(cur_pooln);
 		break;
-	case 'o':			/* --url */
+	case 'o': // --url
 		if (pools[cur_pooln].type != POOL_UNUSED) {
 			// rotate pool pointer
 			cur_pooln = (cur_pooln + 1) % MAX_POOLS;
@@ -3275,7 +3275,7 @@ void parse_arg(int key, char *arg)
 		have_stratum = !opt_benchmark && !strncasecmp(rpc_url, "stratum", 7);
 		pool_set_creds(cur_pooln);
 		break;
-	case 'O':			/* --userpass */
+	case 'O': // --userpass
 		p = strchr(arg, ':');
 		if (!p)
 			show_usage_and_exit(1);
@@ -3286,7 +3286,7 @@ void parse_arg(int key, char *arg)
 		rpc_pass = strdup(p + 1);
 		pool_set_creds(cur_pooln);
 		break;
-	case 'x':			/* --proxy */
+	case 'x': // --proxy
 		if (!strncasecmp(arg, "socks4://", 9))
 			opt_proxy_type = CURLPROXY_SOCKS4;
 		else if (!strncasecmp(arg, "socks5://", 9))
