@@ -5,8 +5,6 @@
 
 extern "C"
 {
-#include "sph/sph_shavite.h"
-#include "sph/sph_simd.h"
 #include "sph/sph_keccak.h"
 
 #include "miner.h"
@@ -77,7 +75,7 @@ extern "C" int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_no
 		cuda_get_arch(thr_id);
 		use_compat_kernels[thr_id] = true; // (cuda_arch[dev_id] < 500);
 
-		if(!use_compat_kernels[thr_id]) {
+		if (!use_compat_kernels[thr_id]) {
 			keccak256_cpu_init(thr_id);
 		} else {
 			// really useful ?

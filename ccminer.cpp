@@ -42,6 +42,7 @@
 #endif
 
 #include "miner.h"
+
 #include "algos.h"
 #include "sph/sph_keccak.h"
 #include "donate.h"
@@ -172,8 +173,6 @@ volatile int pool_switch_count = 0;
 bool conditional_pool_rotate = false;
 pthread_barrier_t pool_algo_barr;
 
-extern char* opt_scratchpad_url;
-
 // current connection
 char *rpc_user = NULL;
 char *rpc_pass;
@@ -242,71 +241,12 @@ int opt_api_mcast_port = 4068;
 
 bool opt_stratum_stats = false;
 
-double dev_donate_percent = MIN_DEV_DONATE_PERCENT;
+double dev_donate_percent = 0.0;
 
-static char const usage[] = "\
-Usage: " PROGRAM_NAME " [OPTIONS]\n\
-Options:\n\
-  -a, --algo=ALGO       specify the hash algorithm to use\n\
-			bastion     Hefty bastion\n\
-			bitcore     Timetravel-10\n\
-			blake       Blake 256 (SFR)\n\
-			blake2s     Blake2-S 256 (NEVA)\n\
-			blakecoin   Fast Blake 256 (8 rounds)\n\
-			bmw         BMW 256\n\
-			cryptolight AEON cryptonight (MEM/2)\n\
-			cryptonight XMR cryptonight\n\
-			c11/flax    X11 variant\n\
-			decred      Decred Blake256\n\
-			deep        Deepcoin\n\
-			equihash    Zcash Equihash\n\
-			dmd-gr      Diamond-Groestl\n\
-			fresh       Freshcoin (shavite 80)\n\
-			fugue256    Fuguecoin\n\
-			groestl     Groestlcoin\n
-			hmq1725     Doubloons / Espers\n\
-			jackpot     JHA v8\n\
-			keccak      Deprecated Keccak-256\n\
-			keccakc     Keccak-256 (CreativeCoin)\n\
-			lbry        LBRY Credits (Sha/Ripemd)\n\
-			luffa       Joincoin\n\
-			lyra2       CryptoCoin\n\
-			lyra2v2     VertCoin\n\
-			lyra2z      ZeroCoin (3rd impl)\n\
-			myr-gr      Myriad-Groestl\n\
-			neoscrypt   FeatherCoin, Phoenix, UFO...\n\
-			nist5       NIST5 (TalkCoin)\n\
-			penta       Pentablake hash (5x Blake 512)\n\
-			phi         BHCoin\n\
-			polytimos   Politimos\n\
-			quark       Quark\n\
-			qubit       Qubit\n\
-			sha256d     SHA256d (bitcoin)\n\
-			sha256t     SHA256 x3\n\
-			sia         SIA (Blake2B)\n\
-			sib         Sibcoin (X11+Streebog)\n\
-			scrypt      Scrypt\n\
-			scrypt-jane Scrypt-jane Chacha\n\
-			skein       Skein SHA2 (Skeincoin)\n\
-			skein2      Double Skein (Woodcoin)\n\
-			skunk       Skein Cube Fugue Streebog\n\
-			s3          S3 (1Coin)\n\
-			timetravel  Machinecoin permuted x8\n\
-			tribus      Denarius\n\
-			vanilla     Blake256-8 (VNL)\n\
-			veltor      Thorsriddle streebog\n\
-			whirlcoin   Old Whirlcoin (Whirlpool algo)\n\
-			whirlpool   Whirlpool algo\n\
-			x11evo      Permuted x11 (Revolver)\n\
-			x11         X11 (DarkCoin)\n\
-			x13         X13 (MaruCoin)\n\
-			x14         X14\n\
-			x15         X15\n\
-			x16r        X16R (Raven)\n\
-			x16s        X16S\n\
-			x17         X17\n\
-			wildkeccak  Boolberry\n\
-			zr5         ZR5 (ZiftrCoin)\n\
+static char const usage[] = "Usage: " PROGRAM_NAME " [OPTIONS]\n \
+Options:\n \
+  -a, --algo=ALGO       specify the hash algorithm to use\n \
+			keccak      Double Keccak-256\n \
   -d, --devices         Comma separated list of CUDA devices to use.\n\
                         Device IDs start counting from 0! Alternatively takes\n\
                         string names of your cards like gtx780ti or gt640#2\n\
@@ -422,13 +362,6 @@ struct option options[] = {
 	{ "no-gbt", 0, NULL, 1011 },
 	{ "no-longpoll", 0, NULL, 1003 },
 	{ "no-stratum", 0, NULL, 1007 },
-	{ "no-autotune", 0, NULL, 1004 },  // scrypt
-	{ "interactive", 1, NULL, 1050 },  // scrypt
-	{ "lookup-gap", 1, NULL, 'L' },    // scrypt
-	{ "texture-cache", 1, NULL, 1051 },// scrypt
-	{ "launch-config", 1, NULL, 'l' }, // scrypt bbr xmr
-	{ "scratchpad", 1, NULL, 'k' },    // bbr
-	{ "bfactor", 1, NULL, 1055 },      // xmr
 	{ "max-temp", 1, NULL, 1060 },
 	{ "max-diff", 1, NULL, 1061 },
 	{ "max-rate", 1, NULL, 1062 },
@@ -819,21 +752,8 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		struct work submit_work;
 		memcpy(&submit_work, work, sizeof(struct work));
 		if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
-			if (rpc2_stratum_submit(pool, &submit_work))
-				hashlog_remember_submit(&submit_work, submit_work.nonces[idnonce]);
 			stratum.job.shares_count++;
 		}
-		return true;
-	}
-
-	if (pool->type & POOL_STRATUM && stratum.is_equihash) {
-		struct work submit_work;
-		memcpy(&submit_work, work, sizeof(struct work));
-		//if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
-			if (equi_stratum_submit(pool, &submit_work))
-				hashlog_remember_submit(&submit_work, submit_work.nonces[idnonce]);
-			stratum.job.shares_count++;
-		//}
 		return true;
 	}
 
@@ -1806,9 +1726,6 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	uchar merkle_root[64] = { 0 };
 	int i;
 
-	if (sctx->rpc2)
-		return rpc2_stratum_gen_work(sctx, work);
-
 	if (!sctx->job.job_id) {
 		// applog(LOG_WARNING, "stratum_gen_work: job not yet retrieved");
 		return false;
@@ -2570,7 +2487,7 @@ wait_lp_url:
 	switchn = pool_switch_count;
 
 	/* full URL */
-	else if (strstr(hdr_path, "://")) {
+	if (strstr(hdr_path, "://")) {
 		lp_url = hdr_path;
 		hdr_path = NULL;
 	}
@@ -2803,10 +2720,6 @@ wait_stratum_url:
 					applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
 				sleep(opt_fail_pause);
 			}
-		}
-
-		if (stratum.rpc2) {
-			rpc2_stratum_thread_stuff(pool);
 		}
 
 		if (switchn != pool_switch_count) goto pool_switched;
@@ -3113,9 +3026,6 @@ void parse_arg(int key, char *arg)
 		}
 		break;
 	}
-	case 'k':
-		opt_scratchpad_url = strdup(arg);
-		break;
 	case 'i':
 		d = atof(arg);
 		v = (uint32_t) d;
@@ -3897,23 +3807,6 @@ int main(int argc, char *argv[])
 		printf("RVN donation address: RYKaoWqR5uahFioNvxabQtEBjNkBmRoRdg (alexis78)\n\n");
 		printf("BTC donation address: 1FHLroBZaB74QvQW5mBmAxCNVJNXa14mH5 (brianmct)\n");
 		printf("RVN donation address: RWoSZX6j6WU6SVTVq5hKmdgPmmrYE9be5R (brianmct)\n\n");
-	}
-	else {
-		// Set dev pool credentials.
-		// TODO dev pool
-		rpc_user = strdup("RXnhazbEM6YfeRBvF1XbYSSzMood7wfAVM");
-		rpc_pass = strdup("c=RVN,donate");
-		rpc_url = strdup("stratum+tcp://ravenminer.com:9999");
-		short_url = strdup("dev pool");
-		pool_set_creds(num_pools++);
-		struct pool_infos *p = &pools[num_pools-1];
-		p->type |= POOL_DONATE;
-		p->algo = ALGO_X16R;
-		dev_timestamp = time(NULL);
-		// ensure that donation time is not within first 30 seconds
-		dev_timestamp_offset = fmod(rand(),
-			DONATE_CYCLE_TIME * (1 - dev_donate_percent/100.) - 30);
-		printf("Dev donation set to %.1f%%. Thanks for supporting this project!\n\n", dev_donate_percent);
 	}
 
 	if (!opt_benchmark && !strlen(rpc_url)) {
